@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 1.5.2">
+<meta name="author" content="Rahman USTA">
+<title>Java ServiceLoader Nedir? SPI (Service Provider Interface) Nasıl Yazılır?</title>
+<link rel="stylesheet" href="https://cdn.rawgit.com/asciidocfx/AsciidocFX/master/src/main/resources/public/css/asciidoctor-default.css">
+</head>
+<body class="article">
+<div id="header">
+<h1>Java ServiceLoader Nedir? SPI (Service Provider Interface) Nasıl Yazılır?</h1>
+<div class="details">
+<span id="author" class="author">Rahman USTA</span><br>
+</div>
+</div>
+<div id="content">
+<div class="paragraph">
+<p>Java programlama dilinde yazılan standartların (spesifications) genişletilebilir kılınması için, <code>java.util.ServiceLoader</code> sınıfı Java 6&#8217;dan beri bulunmaktadır. <code>ServiceLoader</code> sayesinde yazılan spec&#8217;ler farklı uygulayıcılar tarafından karşılanabilmekte ve mevcut standart servis sistemine eklentiler yazılabilmektedir.</p>
+</div>
+<div class="paragraph">
+<p>Örneğin bir servis sağlayıcısının <code>RandomServiceProvider</code> adında bize bir arayüz sunduğunu varsayalım;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public interface RandomServiceProvider {
+
+    public Integer random(int start, int end);
+
+}</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<div class="paragraph">
+<p><code>RandomServiceProvider</code> sınıfının bulunduğu projenin dizin yapısı aşağıdaki gibidir.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/random-service-spi.png" alt="random service spi.png">
+</div>
+<div class="title">Figure 1. random-service-spi projesi</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Bu servisin görevi adından da anlaşılacağı üzere verilen iki tam sayı arasında rastegele bir sayı üretmesidir. Servis sağlayıcı sınıfları genel olarak arayüz veya soyut sınıf türünden olmaktadır.</p>
+</div>
+<div class="paragraph">
+<p>Spesifikasyon belirleyicileri, farklı uygulayıcılar için yukarıdakine benzer arayüzleri API uygulayıcılarına açmaktadır. Java standartlarının geliştirim sürecine bakıldığında, buna benzer bir süreç sürdürülmektedir. API uygulayıcıları ise bu arayüzlere dönük kendi implementasyonlarını geliştirmektedir.</p>
+</div>
+<div class="paragraph">
+<p>Fakat iş sadece arayüzü tanımlamak değildir, bunun yanında bu sisteme standart uygulayıcıların ekler yapabilme imkanı olması gerekmektedir. <code>java.util.ServiceLoader</code> sınıfı bu noktada, servis uygulayıcılarına standart arayüz servislerine eklenti olarak eklenme imkanı sunmaktadır. Şimdi bu arayüzümüzü <code>ServiceLoader</code> sınıfı ile adım adım geliştirelim.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public interface RandomServiceProvider {
+
+    public Integer random(int start, int end);
+
+    public static RandomServiceProvider getProvider(String providerName) {
+        return ...;
+    }
+
+    public static RandomServiceProvider getDefaultProvider() {
+        return ...;
+    }
+
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>RandomServiceProvider</code> sınıfına <code>getProvider</code> ve <code>getDefaultProvider</code> adlarında iki statik metod ekledik. Bunlardan <code>getDefaultProvider()</code> çağrıldığında bu API&#8217;nin varsayılan imlpementasyonunun döndürülmesini istiyoruz. <code>getProvider(..)</code> olanla ise metoda sunulan sağlayıcı ismiyle <code>X</code> bir sağlayıcının döndürülmesini istiyoruz. İşte bu sağlayıcı sınıflar türünden uygulayıcı nesnelerin sisteme sunulması için <code>ServiceLoader</code> sınıfından faydalanacağız. Fakat bu metodların içerisini doldurmadan evvel örneğin bir varsayılan sağlayıcı nesnesi oluşturalım.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class StandardRandomProvider implements `RandomServiceProvider` {
+
+    @Override
+    public Integer random(int start, int end) {
+        Random random = new Random();
+        int randomInt = random.nextInt((end - start + 1)) + start;
+        return randomInt;
+    }
+
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Görüldüğü üzere <code>RandomServiceProvider</code> sağlayıcı arayüzünü uygulayan bir <code>StandardRandomProvider</code> sınıfı oluşturduk. Bu sınıf içerisindeki <code>random()</code> metodu, <code>Random</code> sınıfı üzerinden verilen aralıkta rastgele bir tamsayı üretmektedir.</p>
+</div>
+<div class="paragraph">
+<p>Fakat servis sağlayıcı sınıfını yazmak yetmemektedir. Bunun önceden tanımlı bir biçimde mevcut uygulamaya tanıtılması gerekmektedir. Bunun için <code>StandardRandomProvider</code> sınıfının yer aldığı projede <code>META-INF/services</code> dizini altında <code>RandomServiceProvider</code> sınıfının tam adıyla bir dosya oluşturulmalı ve bu dosyanın içine <code>RandomServiceProvider</code> sınıfının tam adı yazılmalıdır.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/standard-random-service.png" alt="standard random service.png">
+</div>
+<div class="title">Figure 2. standard-random-service projesi</div>
+</div>
+<div class="paragraph">
+<p><code>com.kodcu.spi.RandomServiceProvider</code> dosyasını içi ise aşağıdaki gibidir.</p>
+</div>
+<div class="listingblock">
+<div class="title">com.kodcu.spi.RandomServiceProvider dosyasının içi</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">com.kodcu.StandardRandomProvider</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Bu şekilde artık <code>StandardRandomProvider</code> servisini ServiceLoader sistemine göre yapılandırmış oluyoruz. Şimdi, <code>RandomServiceProvider</code> arayüzü içini uygulayıcılarını sunar şekilde yapılandırmaya devam edelim.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public interface RandomServiceProvider {
+
+public Integer random(int start, int end);
+
+public static RandomServiceProvider getDefaultProvider() {
+    return getProvider("com.kodcu.StandardRandomProvider"); <b class="conum">(1)</b>
+}
+
+public static RandomServiceProvider getProvider(String providerName) {
+    ServiceLoader&lt;RandomServiceProvider&gt; serviceLoader = ServiceLoader.load(RandomServiceProvider.class); <b class="conum">(2)</b>
+
+    for (RandomServiceProvider provider : serviceLoader) { <b class="conum">(3)</b>
+        String className = provider.getClass().getName(); <b class="conum">(4)</b>
+        if (providerName.equals(className)) <b class="conum">(5)</b>
+            return provider;
+    }
+
+    throw new RuntimeException(providerName + " provider is not found!"); <b class="conum">(6)</b>
+}
+
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p><code>com.kodcu.StandardRandomProvider</code> tam isimli varsayılan sağlayıcı sınıfını <strong>CLASSPATH</strong> 'den yükler ve döndürür.</p>
+</li>
+<li>
+<p>Yükleyeceği sağlayıcı arayüz türünden bir <code>ServiceLoader</code> nesnesi üretilir.</p>
+</li>
+<li>
+<p><strong>CLASSPATH</strong> içinde bulunan tüm <code>RandomServiceProvider</code> servis sınıfları türünden nesneler turlanır.</p>
+</li>
+<li>
+<p>Bulunan <code>RandomServiceProvider</code> türünden sınıfın tam adı elde edilir.</p>
+</li>
+<li>
+<p>Eğer bulunan sınıfın tam adı metoda düşen isimle aynı ise ilgili nesne metotdan döndürülür.</p>
+</li>
+<li>
+<p>Eğer <strong>CLASSPATH</strong> içinde hiçbir servis uygulayıcısı bulunmadıysa bir istisna mesajı ile geliştirici bilgilendirilir.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Şimdi varsayılan <code>StandardRandomProvider</code> sağlayıcısına alternatif yeni bir sağlayıcı oluşturalım. İsmi <code>ThreadedRandomProvider</code> olsun.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class ThreadedRandomProvider implements RandomServiceProvider {
+
+    @Override
+    public Integer random(int start, int end) {
+        int randomInt = ThreadLocalRandom.current().nextInt(start,end);
+        return randomInt;
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>ThreadedRandomProvider</code> sınıfı rastgele sayı üretme işini <code>Random</code> sınıfı yerine <code>ThreadLocalRandom</code> sınıfı üzerinden yapıyor. Tabiki bu servis sınıfını yine kendi projesinde <code>META-INF/services</code> altında yapılandırmalıyız.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/threaded-random-service.png" alt="threaded random service.png">
+</div>
+<div class="title">Figure 3. threaded-random-service projesi</div>
+</div>
+<div class="paragraph">
+<p><code>com.kodcu.spi.RandomServiceProvider</code> dosyasını içi ise aşağıdaki gibidir.</p>
+</div>
+<div class="listingblock">
+<div class="title">com.kodcu.spi.RandomServiceProvider dosyasının içi</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">com.kodcu.ThreadedRandomProvider</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Böylece <code>RandomServiceProvider</code> servisi <code>StandardRandomProvider</code> gibi <code>ThreadedRandomProvider</code> sınıfını da kullanıcılarına sunabilecektir.</p>
+</div>
+<div class="paragraph">
+<p>Şimdi bu üç ayrı Java projeyesini <code>random-service-spi</code> , <code>standard-random-service</code> , <code>threaded-random-service</code> çalıştıran <code>random-service-app</code> adında bir proje oluşturalım. Bu proje <code>random-service-spi</code> servisi üzerinden iki servis sağlayıcısını yükleyecek ve <code>random()</code> metodlarını koşturacaktır.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class App {
+
+    public static void main(String[] args) {
+
+        RandomServiceProvider defaultProvider = RandomServiceProvider.getDefaultProvider(); <b class="conum">(1)</b>
+
+        System.out.println(defaultProvider.random(1,1000));  <b class="conum">(2)</b>
+
+        RandomServiceProvider threadedProvider = RandomServiceProvider.getProvider("com.kodcu.ThreadedRandomProvider"); <b class="conum">(3)</b>
+
+        System.out.println(threadedProvider.random(1,1000)); <b class="conum">(4)</b>
+    }
+
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p><code>RandomServiceProvider.defaultProvider()</code> metodu üzerinden varsayılan servis sağlayıcısını <code>com.kodcu.StandardRandomProvider</code> yükler.</p>
+</li>
+<li>
+<p><code>StandardRandomProvider</code> 'ın <code>random()</code> metodu ile rastgele bir sayı üretip çıktılar.</p>
+</li>
+<li>
+<p><code>RandomServiceProvider.getProvider()</code> metodu üzerinden <code>com.kodcu.ThreadedRandomProvider</code> servis sağlayıcısını yükler.</p>
+</li>
+<li>
+<p><code>ThreadedRandomProvider</code> 'ın <code>random()</code> metodu ile rastgele bir sayı üretip çıktılar.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p><code>random-service-app</code> projesinin dosya sistemindeki görünümü aşağıdaki gibidir.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/random-service-app.png" alt="random service app.png">
+</div>
+<div class="title">Figure 4. random-service-app projesi</div>
+</div>
+<div class="paragraph">
+<p>Böylece standart bir servise, ekler halinde ayrı uygulayıcılar oluşturabilmekteyiz. <code>ServiceLoader</code> API ise biz geliştiricilere standart bir yol sunmuş oluyor.</p>
+</div>
+<div class="paragraph">
+<p>Aşağıda servis ve iki uygulayıcısını ve bunları tüketen <code>App</code> sınıfını UML diagram halinde görebilirsiniz.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/service-provider-uml.png" alt="service provider uml.png">
+</div>
+</div>
+<div class="paragraph">
+<p>Kaynak kodlara <a href="https://github.com/rahmanusta/java-service-spi-example">buradaki</a> bağlantıdan erişebilirsiniz.</p>
+</div>
+<div class="paragraph">
+<p>Tekrar görüşmek dileğiyle</p>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2015-02-22 19:37:56 GTBST
+</div>
+</div>
+</body>
+</html>
